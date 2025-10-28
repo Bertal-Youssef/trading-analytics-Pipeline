@@ -1,5 +1,5 @@
 # Trading Analytics Platform — Hybrid Medallion (Real‑time + Batch)
-
+!(image alt)(https://github.com/Bertal-Youssef/trading-analytics-Pipeline/blob/9718721787129757b50d2271aeeabbff7dad1172/DATALAKEHOUSE.jpg)
 This repository scaffolds an enterprise‑grade data platform implementing a **Hybrid Medallion** architecture:
 
 - **Hot path (≤5s):** Kafka → Spark Structured Streaming → Redis → Metabase
