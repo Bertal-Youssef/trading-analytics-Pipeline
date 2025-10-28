@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "MarketData",
+  "namespace": "trading",
+  "fields": [
+    {"name": "symbol", "type": "string"},
+    {"name": "bid", "type": "double"},
+    {"name": "ask", "type": "double"},
+    {"name": "event_ts", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

@@ -1,0 +1,3 @@
+- [ ] Create Git repo
+- [ ] Define SLAs
+- [ ] Add data contracts

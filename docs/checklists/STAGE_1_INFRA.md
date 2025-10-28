@@ -1,0 +1,3 @@
+- [ ] Compose services up
+- [ ] Health checks pass
+- [ ] Connectivity: Spark↔Kafka, Trino↔Iceberg

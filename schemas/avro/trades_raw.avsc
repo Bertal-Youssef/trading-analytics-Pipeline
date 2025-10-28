@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "Trade",
+  "namespace": "trading",
+  "fields": [
+    {"name": "trade_id", "type": "string"},
+    {"name": "symbol", "type": "string"},
+    {"name": "side", "type": {"type": "enum", "name": "Side", "symbols": ["BUY", "SELL"]}},
+    {"name": "price", "type": "double"},
+    {"name": "quantity", "type": "double"},
+    {"name": "trade_ts", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

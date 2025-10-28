@@ -1,0 +1,44 @@
+# -------------------------
+# Python & Spark
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+*.ipynb_checkpoints/
+spark-warehouse/
+.derby/
+.metastore_db/
+
+# -------------------------
+# Docker
+# -------------------------
+*.pid
+*.tar
+*.img
+*.bak
+
+# -------------------------
+# Environment & Config
+# -------------------------
+.env
+.env.*
+*.secrets
+*.key
+*.pem
+
+# -------------------------
+# VS Code / OS Files
+# -------------------------
+.vscode/
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Checkpoints & Output Data
+# -------------------------
+checkpoint/
+data/
+warehouse/

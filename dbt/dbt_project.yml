@@ -1,0 +1,10 @@
+name: 'trading_analytics'
+version: '1.0.0'
+profile: 'trino_iceberg'
+models:
+  trading_analytics:
+    +materialized: table
+    gold:
+      +schema: gold
+      +materialized: incremental
+      +on_schema_change: append_new_columns

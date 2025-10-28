@@ -1,0 +1,33 @@
+warehouse:
+  object_store: s3a://warehouse
+  bucket: warehouse
+  s3_endpoint: ${S3_ENDPOINT}
+  s3_access_key: ${S3_ACCESS_KEY}
+  s3_secret_key: ${S3_SECRET_KEY}
+  region: ${S3_REGION}
+
+kafka:
+  brokers: kafka:9092
+  schema_registry: http://schema-registry:8081
+  topics:
+    trades_raw:
+      partitions: 3
+      replication: 1
+      retention_hours: 168
+    market_data_raw:
+      partitions: 3
+      replication: 1
+      retention_hours: 168
+
+iceberg:
+  catalog: postgres
+  namespace_bronze: bronze
+  namespace_silver: silver
+  namespace_gold: gold
+
+redis:
+  host: redis
+  port: 6379
+  ttl_seconds: 3600
+
+batch_schedule: "0 17 * * *"  # daily 17:00
