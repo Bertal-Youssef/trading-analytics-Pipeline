@@ -35,6 +35,8 @@ spark-warehouse/
 .vscode/
 .DS_Store
 Thumbs.db
+metabase/plugins/
+spark/jars/
 
 # -------------------------
 # Checkpoints & Output Data
