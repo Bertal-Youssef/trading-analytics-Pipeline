@@ -1,46 +1,38 @@
-# -------------------------
-# Python & Spark
-# -------------------------
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# -------------------------------------------------------------
+# Docker & build artifacts
+# -------------------------------------------------------------
 *.log
 *.tmp
-*.ipynb_checkpoints/
-spark-warehouse/
-.derby/
-.metastore_db/
-
-# -------------------------
-# Docker
-# -------------------------
 *.pid
-*.tar
-*.img
-*.bak
+*.sock
+*.swp
+__pycache__/
+*.pyc
 
-# -------------------------
-# Environment & Config
-# -------------------------
+# Docker
 .env
-.env.*
-*.secrets
-*.key
-*.pem
+docker-compose.override.yml
+*/__pycache__/
+*/.pytest_cache/
 
-# -------------------------
-# VS Code / OS Files
-# -------------------------
+# Volumes & data
+clickhouse/data/
+minio/
+pgdata/
+metabase/
+airflow/logs/
+airflow/tmp/
+tmp/
+*/__pycache__/
+
+# IDE / Editor configs
 .vscode/
+.idea/
+
+# OS / misc
 .DS_Store
 Thumbs.db
-metabase/plugins/
-spark/jars/
 
-# -------------------------
-# Checkpoints & Output Data
-# -------------------------
-checkpoint/
-data/
-warehouse/
+# Python environments
+venv/
+.env/
