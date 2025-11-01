@@ -30,14 +30,15 @@ RUN set -eux; \
       echo "Downloading $jar"; \
       curl -fsSL "$jar" -o "/opt/spark/jars/$(basename $jar)"; \
     done
+
 # -------------------------------------------------------------
-# Download Iceberg + Hadoop AWS dependencies
+# Download Iceberg + Hadoop AWS dependencies (match Spark Hadoop 3.3.4)
 # -------------------------------------------------------------
 RUN set -eux; \
     echo "=== Downloading Iceberg and Hadoop AWS dependencies ==="; \
     for jar in \
       "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.5.2/iceberg-spark-runtime-3.5_2.12-1.5.2.jar" \
-      "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.6/hadoop-aws-3.3.6.jar" \
+      "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar" \
       "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar"; \
     do \
       echo "Downloading $jar"; \
@@ -45,25 +46,26 @@ RUN set -eux; \
     done
 
 # -------------------------------------------------------------
-# Download ClickHouse JDBC Driver (Shaded version = includes dependencies)
+# Download ClickHouse JDBC Driver (shaded = includes dependencies)
 # -------------------------------------------------------------
 RUN wget -q \
   https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc/0.6.5/clickhouse-jdbc-0.6.5-shaded.jar \
   -O /opt/spark/jars/clickhouse-jdbc-0.6.5-shaded.jar
 
+# -------------------------------------------------------------
+# Download PostgreSQL JDBC driver (required for Iceberg JDBC catalog)
+# -------------------------------------------------------------
+RUN wget -q \
+  https://jdbc.postgresql.org/download/postgresql-42.7.3.jar \
+  -O /opt/spark/jars/postgresql-42.7.3.jar
 
 # -------------------------------------------------------------
-# Download PostgreSQL JDBC driver (required for Iceberg catalog)
+# Final verification of key jars
 # -------------------------------------------------------------
-RUN wget -q https://jdbc.postgresql.org/download/postgresql-42.7.3.jar \
-    -O /opt/spark/jars/postgresql-42.7.3.jar
-
-# -------------------------------------------------------------
-# Verify all key JARs exist
-# -------------------------------------------------------------
-RUN echo "=== Verifying important JARs ===" && \
-    ls -lh /opt/spark/jars | grep -E "(spark-sql-kafka|clickhouse-jdbc)" && \
-    echo "✅ All required JARs downloaded successfully."
+RUN echo '=== Verifying important JARs ===' && \
+    ls -1 /opt/spark/jars | grep -E "iceberg|hadoop-aws|aws-java-sdk-bundle|postgresql|clickhouse|spark-sql-kafka" && \
+    echo '✅ All required JARs downloaded successfully.'
+RUN mkdir -p /opt/spark-checkpoints && chmod 777 /opt/spark-checkpoints
 
 USER spark
 WORKDIR /opt/spark/work-dir

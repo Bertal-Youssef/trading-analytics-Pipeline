@@ -1,4 +1,5 @@
-version: "3.9"
+# ✅ Remove obsolete version line — Compose v3.9 is implicit now
+# version: "3.9"
 
 services:
   # -------------------------------
@@ -22,13 +23,12 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_CLIENT_PORT:-2181}
       KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS:-PLAINTEXT://kafka:9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
     ports:
       - "9092:9092"
 
-  # Kafka topic initialization
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
     container_name: kafka-init
@@ -60,6 +60,7 @@ services:
 
   postgres:
     image: postgres:15
+    container_name: postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-airflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
@@ -76,7 +77,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:8.8
-    container_name: trading-analytics-platform-pgadmin
+    container_name: pgadmin
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@local.com
@@ -93,8 +94,8 @@ services:
     image: clickhouse/clickhouse-server:24.7
     container_name: clickhouse
     ports:
-      - "8123:8123"     # HTTP interface
-      - "9000:9000"     # Native TCP interface
+      - "8123:8123"
+      - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     ulimits:
@@ -116,10 +117,15 @@ services:
     volumes:
       - ./scripts/init-clickhouse.sh:/init-clickhouse.sh
     entrypoint: ["bash", "/init-clickhouse.sh"]
-    
+
+  # -------------------------------
+  # ✅ Fixed: MinIO (S3-compatible)
+  # -------------------------------
   minio:
-    image: minio/minio:RELEASE.2024-05-10T01-41-38Z
-    command: server /data --console-address ":${MINIO_CONSOLE_PORT:-9001}"
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
@@ -127,15 +133,13 @@ services:
       - "${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - minio:/data
+      - ./data/minio:/data
 
   # -------------------------------
   # Apache Spark (Custom Build)
   # -------------------------------
-    # -------------------------------
-  # Apache Spark (Custom Build)
-  # -------------------------------
   spark-master:
+    image: spark-custom:latest         # <- Tag name for re-use  
     build:
       context: .
       dockerfile: docker/spark/Dockerfile
@@ -149,41 +153,38 @@ services:
       - ./spark:/opt/spark-apps
       - ./scripts:/opt/spark-apps/scripts
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-
     depends_on:
       - kafka
       - clickhouse
+      - minio
+      - postgres
 
   spark-worker-1:
-    build:
-      context: .
-      dockerfile: docker/spark/Dockerfile
+    image: spark-custom:latest         # <- Tag name for re-use
     container_name: spark-worker-1
+    command: >
+      bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /dev/null"
     depends_on:
       - spark-master
     volumes:
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-    command: >
-      bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /dev/null"
 
   spark-worker-2:
-    build:
-      context: .
-      dockerfile: docker/spark/Dockerfile
+    image: spark-custom:latest         # <- Tag name for re-use
     container_name: spark-worker-2
-    volumes:
-      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-    depends_on:
-      - spark-master
     command: >
       bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /dev/null"
-
+    depends_on:
+      - spark-master
+    volumes:
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
 
   # -------------------------------
   # Query Engine (Trino)
   # -------------------------------
   trino:
     image: trinodb/trino:438
+    container_name: trino
     ports:
       - "8080:8080"
     volumes:
@@ -199,63 +200,73 @@ services:
   # -------------------------------
   airflow-init:
     image: apache/airflow:2.9.3
+    container_name: airflow-init
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
+      - ./spark:/opt/airflow/spark
+
     command: >
       bash -c "pip install -r /requirements.txt &&
                airflow db init &&
                airflow users create --username admin --password admin --firstname A --lastname D --role Admin --email admin@example.com"
 
+
   airflow-webserver:
     image: apache/airflow:2.9.3
+    container_name: airflow-webserver
     restart: always
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     environment:
-      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
     ports:
       - "8087:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
+      - /var/run/docker.sock:/var/run/docker.sock 
+      - ./spark:/opt/airflow/spark
+
     command: ["airflow", "webserver"]
 
   airflow-scheduler:
     image: apache/airflow:2.9.3
+    container_name: airflow-scheduler
     restart: always
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     environment:
-      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
-      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
-      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
+      - /var/run/docker.sock:/var/run/docker.sock 
+      - ./spark:/opt/airflow/spark
+
+      
     command: ["airflow", "scheduler"]
 
   # -------------------------------
@@ -280,6 +291,7 @@ services:
 
   metabase:
     image: metabase/metabase:v0.49.13
+    container_name: metabase
     ports:
       - "3000:3000"
     environment:
@@ -294,6 +306,6 @@ services:
 # -------------------------------
 volumes:
   pgdata:
-  minio:
+  clickhouse_data:
   metabase:
-  clickhouse_data:  
+  minio:
