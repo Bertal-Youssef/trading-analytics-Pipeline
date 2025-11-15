@@ -1,0 +1,9 @@
+version: 2
+models:
+  - name: daily_trade_metrics
+    description: "Aggregated daily trading metrics per symbol"
+    columns:
+      - name: trade_date
+        tests: [not_null]
+      - name: symbol
+        tests: [not_null]

@@ -1,0 +1,13 @@
+trading_analytics_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none
+      user: dbt
+      host: trino
+      port: 8080
+      database: lakehouse
+      schema: gold
+      threads: 4
+      http_scheme: http

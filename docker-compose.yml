@@ -150,9 +150,10 @@ services:
       - "7077:7077"
       - "8082:8080"
     volumes:
-      - ./spark:/opt/spark-apps
+      - spark_code:/opt/spark-apps
       - ./scripts:/opt/spark-apps/scripts
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+
     depends_on:
       - kafka
       - clickhouse
@@ -167,7 +168,10 @@ services:
     depends_on:
       - spark-master
     volumes:
+      - spark_code:/opt/spark-apps
+      - ./scripts:/opt/spark-apps/scripts
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+
 
   spark-worker-2:
     image: spark-custom:latest         # <- Tag name for re-use
@@ -177,7 +181,10 @@ services:
     depends_on:
       - spark-master
     volumes:
+      - spark_code:/opt/spark-apps
+      - ./scripts:/opt/spark-apps/scripts
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+
 
   # -------------------------------
   # Query Engine (Trino)
@@ -211,11 +218,10 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
     volumes:
+      - ./spark:/opt/airflow/spark                    # ← Use bind mount, not named volume
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
-      - ./spark:/opt/airflow/spark
-
     command: >
       bash -c "pip install -r /requirements.txt &&
                airflow db init &&
@@ -238,12 +244,11 @@ services:
     ports:
       - "8087:8080"
     volumes:
+      - ./spark:/opt/airflow/spark                    # ← Only one mount, bind mount
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
       - /var/run/docker.sock:/var/run/docker.sock 
-      - ./spark:/opt/airflow/spark
-
     command: ["airflow", "webserver"]
 
   airflow-scheduler:
@@ -260,13 +265,11 @@ services:
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
       AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey123"
     volumes:
+      - ./spark:/opt/airflow/spark                    # ← Use bind mount, not named volume
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/requirements.txt:/requirements.txt
       - /var/run/docker.sock:/var/run/docker.sock 
-      - ./spark:/opt/airflow/spark
-
-      
     command: ["airflow", "scheduler"]
 
   # -------------------------------
@@ -279,15 +282,23 @@ services:
       - "8088:8088"
     environment:
       SUPERSET_SECRET_KEY: superset
+      SUPERSET_HOME: /app/superset_home
     depends_on:
       - trino
-    command: >
-      bash -c "
-      pip install trino sqlalchemy-trino &&
-      superset db upgrade &&
-      superset fab create-admin --username admin --firstname Admin --lastname User --email admin@admin.com --password admin &&
-      superset init &&
-      superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger"
+    volumes:
+      - ./superset_home:/app/superset_home
+    entrypoint: /bin/bash -c "pip install trino sqlalchemy-trino &&
+      if [ ! -f /app/superset_home/initialized ]; then
+          echo '📌 First-time Superset initialization...';
+          superset db upgrade &&
+          superset fab create-admin --username admin --firstname Admin --lastname User --email admin@admin.com --password admin &&
+          superset init &&
+          touch /app/superset_home/initialized;
+      else
+          echo '🔁 Superset already initialized';
+      fi &&
+      superset run -h 0.0.0.0 -p 8088 "
+  
 
   metabase:
     image: metabase/metabase:v0.49.13
@@ -301,6 +312,24 @@ services:
       - metabase:/metabase.db
       - ./metabase/plugins:/plugins
 
+
+  
+  dbt:
+    build:
+      context: .
+      dockerfile: docker/dbt/Dockerfile
+    image: dbt-trino-local:1.8.4
+    container_name: dbt
+    restart: unless-stopped
+    working_dir: /usr/app
+    volumes:
+      - ./dbt:/usr/app           # your dbt project on host
+    environment:
+      DBT_PROFILES_DIR: /usr/app
+    depends_on:
+      - trino
+
+
 # -------------------------------
 # Volumes
 # -------------------------------
@@ -309,3 +338,9 @@ volumes:
   clickhouse_data:
   metabase:
   minio:
+  spark_code:                                     # 👈 new shared named volume
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./spark
